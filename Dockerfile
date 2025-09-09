@@ -1,32 +1,28 @@
-# Etapa 1: Dependencias con Composer
-FROM composer:2 AS vendor
+# Etapa 1: Composer - instalar dependencias
+FROM composer:2 as vendor
+
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --optimize-autoloader
 
-# Etapa 2: Imagen PHP con extensiones necesarias
+# Etapa 2: PHP + extensiones
 FROM php:8.2-cli
-RUN apt-get update && apt-get install -y \
-    libzip-dev unzip git curl libpng-dev libonig-dev libxml2-dev zip \
- && docker-php-ext-install pdo_mysql mbstring zip exif pcntl
-
-# Copiar dependencias de la etapa vendor
-COPY --from=vendor /app /app
-
-# Instalar Composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
-COPY . /app
 
-# Instalar dependencias (si cambió algo desde la etapa vendor)
-RUN composer install --no-dev --no-interaction --optimize-autoloader || true
+# Copiamos dependencias de composer
+COPY --from=vendor /app/vendor /app/vendor
 
-# Permisos correctos
-RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache || true
+# Copiamos TODO el código del proyecto
+COPY . .
 
-# Exponer puerto
-EXPOSE 8000
+# Instalamos extensiones necesarias para Laravel
+RUN apt-get update && apt-get install -y \
+    libzip-dev unzip git curl libpng-dev libonig-dev libxml2-dev zip \
+    && docker-php-ext-install pdo_mysql mbstring zip exif pcntl
 
-# Comando por defecto: arrancar Laravel
-CMD php artisan serve --host=0.0.0.0 --port=$PORT
+# Railway necesita que la app corra en el puerto 8080
+ENV PORT=8080
+
+# Comando para arrancar Laravel
+CMD php artisan serve --host=0.0.0.0 --port=${PORT}
